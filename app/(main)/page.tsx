@@ -2,52 +2,62 @@
 
 import CodeViewer from "@/components/code-viewer";
 import { useScrollTo } from "@/hooks/use-scroll-to";
+import { domain } from "@/utils/domain";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowLongRightIcon, ChevronDownIcon } from "@heroicons/react/20/solid";
 import { ArrowUpOnSquareIcon } from "@heroicons/react/24/outline";
 import * as Select from "@radix-ui/react-select";
 import * as Switch from "@radix-ui/react-switch";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { AnimatePresence, motion } from "framer-motion";
 import { FormEvent, useEffect, useState } from "react";
+import { toast, Toaster } from "sonner";
 import LoadingDots from "../../components/loading-dots";
+import { shareApp } from "./actions";
+
 
 function removeCodeFormatting(code: string): string {
   return code.replace(/```(?:typescript|javascript|tsx)?\n([\s\S]*?)```/g, '$1').trim();
 }
 
 export default function Home() {
-  let [status, setStatus] = useState<
-    "initial" | "creating" | "created" | "updating" | "updated"
-  >("initial");
+  let [status, setStatus] =
+    useState<"initial" | "creating" | "created" | "updating" | "updated">("initial");
   let [prompt, setPrompt] = useState("");
-  let models = [
-    {
-      label: "gemini-2.0-flash-exp",
-      value: "gemini-2.0-flash-exp",
-    },
-    {
-      label: "gemini-1.5-pro",
-      value: "gemini-1.5-pro",
-    },
-    {
-      label: "gemini-1.5-flash",
-      value: "gemini-1.5-flash",
-    }
-  ];
-  let [model, setModel] = useState(models[0].value);
+
+  const [models, setModels] = useState([]);
+  useEffect(() => {
+    (async () => fetchModels())();
+  }, []);
+  let [model, setModel] = useState(models[0]?.value || "");
+
   let [shadcn, setShadcn] = useState(false);
   let [modification, setModification] = useState("");
   let [generatedCode, setGeneratedCode] = useState("");
+
   let [initialAppConfig, setInitialAppConfig] = useState({
     model: "",
     shadcn: true,
   });
+
   let [ref, scrollTo] = useScrollTo();
   let [messages, setMessages] = useState<{ role: string; content: string }[]>(
     [],
   );
-
+  let [isPublishing, setIsPublishing] = useState(false);
   let loading = status === "creating" || status === "updating";
+
+  async function fetchModels() {
+    const res = await fetch(`/api/fetchModels`, {
+      method: "GET",
+    });
+    const jsonRes = await res.json();
+    const models = jsonRes.models.map(model => ({
+        label: model.name,
+        value: model.model
+      }));
+    setModels(models)
+  }
 
   async function createApp(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -70,7 +80,41 @@ export default function Home() {
         messages: [{ role: "user", content: prompt }],
       }),
     });
+    await processGeneratedCode(res);
 
+    setMessages([{ role: "user", content: prompt }]);
+    setInitialAppConfig({ model, shadcn });
+    setStatus("created");
+  }
+
+  async function updateApp(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    setStatus("updating");
+
+    let codeMessage = { role: "assistant", content: generatedCode };
+    let modificationMessage = { role: "user", content: modification };
+
+    setGeneratedCode("");
+
+    let res = await fetch("/api/generateCode", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        shadcn,
+        messages: [...messages, codeMessage, modificationMessage],
+      }),
+    });
+    await processGeneratedCode(res);
+
+    setMessages(messages => [...messages, codeMessage, modificationMessage]);
+    setStatus("updated");
+  }
+
+  async function processGeneratedCode(res: Response) {
     if (!res.ok) {
       throw new Error(res.statusText);
     }
@@ -81,20 +125,20 @@ export default function Home() {
 
     const reader = res.body.getReader();
     let receivedData = "";
-
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
         break;
       }
-      receivedData += new TextDecoder().decode(value);
+      const receivedLines = new TextDecoder().decode(value);
+      receivedLines.split("\n")
+        .filter(receivedLines => receivedLines.length > 0)
+        .forEach(receivedLine => {
+          receivedData += JSON.parse(receivedLine).response;
+        })
       const cleanedData = removeCodeFormatting(receivedData);
       setGeneratedCode(cleanedData);
     }
-
-    setMessages([{ role: "user", content: prompt }]);
-    setInitialAppConfig({ model, shadcn });
-    setStatus("created");
   }
 
   useEffect(() => {
@@ -109,11 +153,11 @@ export default function Home() {
     <main className="mt-12 flex w-full flex-1 flex-col items-center px-4 text-center sm:mt-1">
       <a
         className="mb-4 inline-flex h-7 shrink-0 items-center gap-[9px] rounded-[50px] border-[0.5px] border-solid border-[#E6E6E6] bg-[rgba(234,238,255,0.65)] bg-gray-100 px-7 py-5 shadow-[0px_1px_1px_0px_rgba(0,0,0,0.25)]"
-        href="https://ai.google.dev/gemini-api/docs"
+        href="https://ollama.com"
         target="_blank"
       >
         <span className="text-center">
-          Powered by <span className="font-medium">Gemini API</span>
+          Powered by <span className="font-medium">Ollama API</span>
         </span>
       </a>
       <h1 className="my-6 max-w-3xl text-4xl font-bold text-gray-800 sm:text-6xl">
@@ -226,6 +270,100 @@ export default function Home() {
           onAnimationComplete={() => scrollTo()}
           ref={ref}
         >
+          <div className="mt-5 flex gap-4">
+            <form className="w-full" onSubmit={updateApp}>
+              <fieldset disabled={loading} className="group">
+                <div className="relative">
+                  <div className="relative flex rounded-3xl bg-white shadow-sm group-disabled:bg-gray-50">
+                    <div className="relative flex flex-grow items-stretch focus-within:z-10">
+                      <input
+                        required
+                        name="modification"
+                        value={modification}
+                        onChange={(e) => setModification(e.target.value)}
+                        className="w-full rounded-l-3xl bg-transparent px-6 py-5 text-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed"
+                        placeholder="Make changes to your app here"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="relative -ml-px inline-flex items-center gap-x-1.5 rounded-r-3xl px-3 py-2 text-sm font-semibold text-blue-500 hover:text-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:text-gray-900"
+                    >
+                      {loading ? (
+                        <LoadingDots color="black" style="large" />
+                      ) : (
+                        <ArrowLongRightIcon className="-ml-0.5 size-6" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </fieldset>
+            </form>
+            <div>
+              <Toaster invert={true} />
+              <Tooltip.Provider>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <button
+                      disabled={loading || isPublishing}
+                      onClick={async () => {
+                        setIsPublishing(true);
+                        let userMessages = messages.filter(
+                          (message) => message.role === "user",
+                        );
+                        let prompt =
+                          userMessages[userMessages.length - 1].content;
+
+                        const appId = await minDelay(
+                          shareApp({
+                            generatedCode,
+                            prompt,
+                            model: initialAppConfig.model,
+                          }),
+                          1000,
+                        );
+                        setIsPublishing(false);
+                        toast.success(
+                          `Your app has been published & copied to your clipboard! llamacoder.io/share/${appId}`,
+                        );
+                        navigator.clipboard.writeText(
+                          `${domain}/share/${appId}`,
+                        );
+                      }}
+                      className="inline-flex h-[68px] w-40 items-center justify-center gap-2 rounded-3xl bg-blue-500 transition enabled:hover:bg-blue-600 disabled:grayscale"
+                    >
+                      <span className="relative">
+                        {isPublishing && (
+                          <span className="absolute inset-0 flex items-center justify-center">
+                            <LoadingDots color="white" style="large" />
+                          </span>
+                        )}
+
+                        <ArrowUpOnSquareIcon
+                          className={`${isPublishing ? "invisible" : ""} size-5 text-xl text-white`}
+                        />
+                      </span>
+
+                      <p className="text-lg font-medium text-white">
+                        Publish app
+                      </p>
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Portal>
+                    <Tooltip.Content
+                      className="select-none rounded bg-white px-4 py-2.5 text-sm leading-none shadow-md shadow-black/20"
+                      sideOffset={5}
+                    >
+                      Publish your app to the internet.
+                      <Tooltip.Arrow className="fill-white" />
+                    </Tooltip.Content>
+                  </Tooltip.Portal>
+                </Tooltip.Root>
+              </Tooltip.Provider>
+            </div>
+          </div>
+
           <div className="relative mt-8 w-full overflow-hidden">
             <div className="isolate">
               <CodeViewer code={generatedCode} showEditor />
@@ -266,3 +404,5 @@ async function minDelay<T>(promise: Promise<T>, ms: number) {
 
   return p;
 }
+
+
