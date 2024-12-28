@@ -7,26 +7,34 @@ export default function Footer() {
         <div className="font-medium">
           Built with{" "}
           <a
-            href="https://ai.google.dev/gemini-api/docs"
+            href="https://ollama.com"
             className="font-semibold text-blue-600 underline-offset-4 transition hover:text-gray-700 hover:underline"
             target="_blank"
           >
-            Gemini API
-          </a>{" "}
-          and{" "}
+            Ollama API
+          </a>
+          , inspired by{" "}
           <a
             href="https://github.com/nutlope/llamacoder"
             className="font-semibold text-blue-600 underline-offset-4 transition hover:text-gray-700 hover:underline"
             target="_blank"
           >
-            Inspired on Llamacoder
+            Llama Coder
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://github.com/osanseviero/geminiCoder"
+            className="font-semibold text-blue-600 underline-offset-4 transition hover:text-gray-700 hover:underline"
+            target="_blank"
+          >
+             Gemini Coder
           </a>
           .
         </div>
       </div>
       <div className="flex space-x-4 pb-4 sm:pb-0">
         <Link
-          href="https://twitter.com/osanseviero"
+          href="https://twitter.com/???"
           className="group"
           aria-label=""
           target="_blank"
@@ -39,7 +47,7 @@ export default function Footer() {
           </svg>
         </Link>
         <Link
-          href="https://github.com/osanseviero/geminicoder"
+          href="https://github.com/Antonio-Rinaldi/ollamacoder"
           className="group"
           aria-label="TaxPal on GitHub"
           target="_blank"

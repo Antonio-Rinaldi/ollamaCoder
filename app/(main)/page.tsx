@@ -16,25 +16,27 @@ function removeCodeFormatting(code: string): string {
 }
 
 export default function Home() {
-  let [status, setStatus] = useState<
-    "initial" | "creating" | "created" | "updating" | "updated"
-  >("initial");
+  const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  let [status, setStatus] =
+    useState<"initial" | "creating" | "created" | "updating" | "updated">("initial");
   let [prompt, setPrompt] = useState("");
-  let models = [
-    {
-      label: "gemini-2.0-flash-exp",
-      value: "gemini-2.0-flash-exp",
-    },
-    {
-      label: "gemini-1.5-pro",
-      value: "gemini-1.5-pro",
-    },
-    {
-      label: "gemini-1.5-flash",
-      value: "gemini-1.5-flash",
-    }
-  ];
-  let [model, setModel] = useState(models[0].value);
+
+  // Add useEffect for fetching models
+  const [models, setModels] = useState([]);
+  useEffect(() => {
+    fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+      method: "GET",
+    })
+      .then(response => response.json())
+      .then(response => response.models.map(model => ({
+        label: model.name,
+        value: model.model
+      })))
+      .then(setModels)
+      .catch(err => {throw new Error(err)});
+  }, [OLLAMA_BASE_URL]);
+
+  let [model, setModel] = useState(models[0]?.value || "");
   let [shadcn, setShadcn] = useState(false);
   let [modification, setModification] = useState("");
   let [generatedCode, setGeneratedCode] = useState("");
@@ -109,11 +111,11 @@ export default function Home() {
     <main className="mt-12 flex w-full flex-1 flex-col items-center px-4 text-center sm:mt-1">
       <a
         className="mb-4 inline-flex h-7 shrink-0 items-center gap-[9px] rounded-[50px] border-[0.5px] border-solid border-[#E6E6E6] bg-[rgba(234,238,255,0.65)] bg-gray-100 px-7 py-5 shadow-[0px_1px_1px_0px_rgba(0,0,0,0.25)]"
-        href="https://ai.google.dev/gemini-api/docs"
+        href="https://ollama.com"
         target="_blank"
       >
         <span className="text-center">
-          Powered by <span className="font-medium">Gemini API</span>
+          Powered by <span className="font-medium">Ollama API</span>
         </span>
       </a>
       <h1 className="my-6 max-w-3xl text-4xl font-bold text-gray-800 sm:text-6xl">
