@@ -1,4 +1,4 @@
-<a href="https://www.ollamacoder.io">
+<a href="http://localhost:3000">
   <img alt="Ollama Coder" src="./public/logo.svg">
   <h1 align="center">Ollama Coder</h1>
 </a>

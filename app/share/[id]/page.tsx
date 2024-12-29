@@ -20,7 +20,7 @@ export async function generateMetadata({
   searchParams.set("prompt", prompt);
 
   return {
-    title: "An app generated on LlamaCoder.io",
+    title: "An app generated on OllamaCoder",
     description: `Prompt: ${generatedApp?.prompt}`,
     openGraph: {
       images: [`/api/og?${searchParams}`],
